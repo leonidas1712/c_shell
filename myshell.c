@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 #define EXITED 1
 #define RUNNING 2
@@ -46,13 +47,14 @@ void add_process(pid_t pid) {
     return;
 }
 
+// print details for one process
 void print_process(PCBTable *proc) {
     pid_t pid = proc->pid;
     int status = proc->status;
     int exitCode = proc->exitCode;
 
-    char *with_code = "[%d] %s %d";
-    char *without_code = "[%d] %s";
+    char *with_code = "[%d] %s %d\n";
+    char *without_code = "[%d] %s\n";
 
     switch (status) {
         case 1:
@@ -68,16 +70,25 @@ void print_process(PCBTable *proc) {
     }
 }
 
+// print details of all processes
+void print_all_processes() {
+    for (int i = 0; i < num_processes; i++) {
+        print_process(&processes[i]);
+    }
+}
+
 // option is numeric numbers +ve,-ve
 // options: 0,1,2,3
 void info_handler(size_t num_tokens, char** tokens) {
     //print_tokens(num_tokens, tokens);
+
+    // num_tokens includes NULL
     if (num_tokens - 1 > 1) {
         int option = atoi(tokens[1]);
 
         switch (option) {
             case 0:
-                puts("opt 0");
+                print_all_processes();                
                 break;
             case 1:
                 puts("opt 1");
@@ -98,10 +109,25 @@ void info_handler(size_t num_tokens, char** tokens) {
     
 }
 
+// handler when a child process changes state
+void child_handler(int signum) {
+    pid_t pid;
+    int status;
+
+    // child stopped or terminated - but there may have been multiple
+    // -1: wait for any child proc
+    // WNOHANG: doesn't block if nothing there
+    // > 0: returns pid of the child whose state has changed
+        // WNOHANG specified: returns 0 if there are child procs who have not changed state
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+    
+    }
+    return;
+}
 
 void my_init(void) {
     // Initialize what you need here
-
+    signal(SIGCHLD, child_handler);
  
 }
 
@@ -142,8 +168,6 @@ void my_process_command(size_t num_tokens, char **tokens) {
     }
 
     waitpid(child_id, &status, 0);
-
-    
 }
 
 
