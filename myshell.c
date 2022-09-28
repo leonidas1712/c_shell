@@ -43,7 +43,6 @@ void add_process(pid_t pid) {
     PCBTable proc = { pid, RUNNING, NOT_EXITED };
     processes[num_processes] = proc;
     num_processes += 1;
-    //printf("added proc %d\n", pid);
     return;
 }
 
@@ -77,6 +76,32 @@ void print_all_processes() {
     }
 }
 
+// print process count for the given status
+void print_process_count(int status) {
+    int total = 0;
+    for (int i = 0; i < num_processes; i++) {
+        PCBTable *proc = &processes[i];
+        if (proc->status == status) {
+            total += 1;
+        }
+    }
+
+    switch (status) {
+        case EXITED:
+            printf("Total exited process: %d\n", total);
+            break;
+        case RUNNING:
+            printf("Total running process: %d\n", total);
+            break;
+        case TERMINATING:
+            printf("Total terminating process: %d\n", total);
+            break;
+        case STOPPED:
+            printf("Total stopped process: %d\n", total);
+            break;
+    }
+}
+
 // option is numeric numbers +ve,-ve
 // options: 0,1,2,3
 void info_handler(size_t num_tokens, char** tokens) {
@@ -90,14 +115,11 @@ void info_handler(size_t num_tokens, char** tokens) {
             case 0:
                 print_all_processes();                
                 break;
-            case 1:
-                puts("opt 1");
-                break;
-            case 2:
-                puts("opt 2");
-                break;
-            case 3:
-                puts("opt 3");
+            case EXITED:
+            case RUNNING:
+            case TERMINATING:
+            case STOPPED:
+                print_process_count(option);
                 break;
             default:
                 fprintf(stderr, "Wrong command\n");
@@ -108,34 +130,6 @@ void info_handler(size_t num_tokens, char** tokens) {
     }
     
 }
-
-// handler when a child process changes state
-// void child_handler(int signum) {
-//     pid_t pid;
-//     int status;
-//     //printf("child handler called\n");
-
-//     // child stopped or terminated - but there may have been multiple
-//     // -1: wait for any child proc
-//     // WNOHANG: doesn't block if nothing there
-//     // > 0: returns pid of the child whose state has changed
-//         // WNOHANG specified: returns 0 if there are child procs who have not changed state
-//     // while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-//     //     printf("Process [%d] changed state\n", pid);
-//     // }
-//     for (int i = 0; i < num_processes; i++) {
-//         PCBTable *proc = &processes[i];
-//         pid = waitpid(proc->pid, &status, WNOHANG);
-//         if (pid > 0) {
-//             //printf("Process [%d] changed state\n", pid);
-//             //waitpid(pid, &status, 0);
-//             proc->status = 1;
-//             proc->exitCode = status;
-//         }
-//     }
-    
-//     return;
-// }
 
 void my_init(void) {
     // Initialize what you need here
@@ -157,7 +151,7 @@ void blocking_wait_on_process(pid_t pid) {
 
         if (WIFEXITED(status)) {
             proc->status = EXITED;
-            proc->exitCode = status;
+            proc->exitCode = WEXITSTATUS(status);
         }
     }
 }
@@ -184,7 +178,7 @@ void my_process_command(size_t num_tokens, char **tokens) {
     }
 
     pid_t child_id;
-    
+
     // inside child
     if ((child_id = fork()) == 0) {
         if (execv(first, tokens) == -1) {
