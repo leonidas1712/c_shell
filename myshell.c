@@ -21,6 +21,7 @@
 #define TERMINATING 3
 #define STOPPED 4
 #define NOT_EXITED -1
+#define BG_TOKEN "&"
 
 typedef struct PCBTable PCBTable;
 
@@ -151,20 +152,44 @@ void blocking_wait_on_process(pid_t pid) {
 
         if (WIFEXITED(status)) {
             proc->status = EXITED;
+            // get actual exit status using macro
             proc->exitCode = WEXITSTATUS(status);
         }
     }
 }
 
+// return tokens array with bg removed
+char** remove_bg_token(size_t num_tokens, char ** tokens) {
+    char* new_tokens[num_tokens - 1];
+    int index = 0;
+
+    for (size_t i = 0; i < num_tokens; i++) {
+        // & is at last-1
+        if (i == num_tokens - 2) {
+            continue;
+        }
+        new_tokens[index] = tokens[i];
+        index++;
+    }
 
 
-
+    return new_tokens;
+}
 
 // tokens: array of strings, last is NULL
 void my_process_command(size_t num_tokens, char **tokens) {
     // Your code here, refer to the lab document for a description of the
     // arguments
     //print_tokens(num_tokens, tokens);
+
+    // background: don't blocking wait
+    int blocking = 1;
+    if (strcmp(tokens[num_tokens-2], BG_TOKEN) == 0) {
+        blocking = 0;
+        char** new_tokens = remove_bg_token(num_tokens, tokens);
+        print_tokens(num_tokens - 1, new_tokens);
+    }
+
     char *first = tokens[0];
 
     if (strcmp(first, "info") == 0) {
@@ -193,7 +218,9 @@ void my_process_command(size_t num_tokens, char **tokens) {
         fprintf(stderr, "%s not found\n", first);
     }
 
-    blocking_wait_on_process(child_id);
+    if (blocking) {
+        blocking_wait_on_process(child_id);
+    }
 }
 
 
