@@ -110,38 +110,59 @@ void info_handler(size_t num_tokens, char** tokens) {
 }
 
 // handler when a child process changes state
-void child_handler(int signum) {
-    pid_t pid;
-    int status;
-    //printf("child handler called\n");
+// void child_handler(int signum) {
+//     pid_t pid;
+//     int status;
+//     //printf("child handler called\n");
 
-    // child stopped or terminated - but there may have been multiple
-    // -1: wait for any child proc
-    // WNOHANG: doesn't block if nothing there
-    // > 0: returns pid of the child whose state has changed
-        // WNOHANG specified: returns 0 if there are child procs who have not changed state
-    // while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-    //     printf("Process [%d] changed state\n", pid);
-    // }
-    for (int i = 0; i < num_processes; i++) {
-        PCBTable *proc = &processes[i];
-        pid = waitpid(proc->pid, &status, WNOHANG);
-        if (pid > 0) {
-            //printf("Process [%d] changed state\n", pid);
-            //waitpid(pid, &status, 0);
-            proc->status = 1;
-            proc->exitCode = status;
-        }
-    }
+//     // child stopped or terminated - but there may have been multiple
+//     // -1: wait for any child proc
+//     // WNOHANG: doesn't block if nothing there
+//     // > 0: returns pid of the child whose state has changed
+//         // WNOHANG specified: returns 0 if there are child procs who have not changed state
+//     // while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+//     //     printf("Process [%d] changed state\n", pid);
+//     // }
+//     for (int i = 0; i < num_processes; i++) {
+//         PCBTable *proc = &processes[i];
+//         pid = waitpid(proc->pid, &status, WNOHANG);
+//         if (pid > 0) {
+//             //printf("Process [%d] changed state\n", pid);
+//             //waitpid(pid, &status, 0);
+//             proc->status = 1;
+//             proc->exitCode = status;
+//         }
+//     }
     
-    return;
-}
+//     return;
+// }
 
 void my_init(void) {
     // Initialize what you need here
-    signal(SIGCHLD, child_handler);
+    //signal(SIGCHLD, child_handler);
  
 }
+
+// blocking wait and state change for a specific child process
+void blocking_wait_on_process(pid_t pid) {
+    for (int i = 0; i < num_processes; i++) {
+        PCBTable *proc = &processes[i];
+        int status;
+
+        if (proc->pid != pid) {
+            continue;
+        }
+
+        int res = waitpid(proc->pid, &status, 0);
+
+        if (WIFEXITED(status)) {
+            proc->status = EXITED;
+            proc->exitCode = status;
+        }
+    }
+}
+
+
 
 
 
@@ -163,8 +184,7 @@ void my_process_command(size_t num_tokens, char **tokens) {
     }
 
     pid_t child_id;
-    int status;
-
+    
     // inside child
     if ((child_id = fork()) == 0) {
         if (execv(first, tokens) == -1) {
@@ -179,11 +199,7 @@ void my_process_command(size_t num_tokens, char **tokens) {
         fprintf(stderr, "%s not found\n", first);
     }
 
-    int block = 1;
-
-    if (block == 1) {
-        waitpid(child_id, &status, 0);
-    } 
+    blocking_wait_on_process(child_id);
 }
 
 
