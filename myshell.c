@@ -158,6 +158,27 @@ void blocking_wait_on_process(pid_t pid) {
     }
 }
 
+// state change on any processes that have not been waited on already
+void clean_processes() {
+    for (int i = 0; i < num_processes; i++) {
+        PCBTable *proc = &processes[i];
+        int status;
+
+        int res = waitpid(proc->pid, &status, WNOHANG);
+
+        // either waited already or no state change
+        if (res <= 0) {
+            continue;
+        }
+
+        if (WIFEXITED(status)) {
+            proc->status = EXITED;
+            // get actual exit status using macro
+            proc->exitCode = WEXITSTATUS(status);
+        }
+    }
+}
+
 // num_tokens: length of src including NULL
 // assumption: dest created with size num_tokens-1
 void remove_bg_token(char** src, char** dest, size_t num_tokens) {
@@ -181,6 +202,7 @@ void remove_bg_token(char** src, char** dest, size_t num_tokens) {
 void my_process_command(size_t num_tokens, char **tokens) {
     // Your code here, refer to the lab document for a description of the
     // arguments
+    clean_processes();
     //print_tokens(num_tokens, tokens);
 
     // blocking = 1 means normal, blocking = 0 means &
@@ -214,10 +236,10 @@ void my_process_command(size_t num_tokens, char **tokens) {
 
     // inside child
     if ((child_id = fork()) == 0) {
-        // this branch should never run under specified cond
         char** actual_tokens = tokens;
         size_t length = num_tokens;
 
+        // chose original if blocking, filtered if nonblocking
         if (blocking) {
             actual_tokens = tokens;
             length = num_tokens;
