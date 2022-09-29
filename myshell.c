@@ -158,23 +158,24 @@ void blocking_wait_on_process(pid_t pid) {
     }
 }
 
-// return tokens array with bg removed
-char** remove_bg_token(size_t num_tokens, char ** tokens) {
-    char* new_tokens[num_tokens - 1];
-    int index = 0;
-
+// num_tokens: length of src including NULL
+// assumption: dest created with size num_tokens-1
+void remove_bg_token(char** src, char** dest, size_t num_tokens) {
+    size_t index = 0;
     for (size_t i = 0; i < num_tokens; i++) {
-        // & is at last-1
-        if (i == num_tokens - 2) {
+        if (src[i] == NULL) {
             continue;
         }
-        new_tokens[index] = tokens[i];
+
+        if (strcmp(BG_TOKEN, src[i]) == 0) {
+            continue;
+        }
+        dest[index] = src[i];
         index++;
     }
-
-
-    return new_tokens;
+    dest[num_tokens-2] = NULL;
 }
+
 
 // tokens: array of strings, last is NULL
 void my_process_command(size_t num_tokens, char **tokens) {
@@ -184,20 +185,24 @@ void my_process_command(size_t num_tokens, char **tokens) {
 
     // background: don't blocking wait
     int blocking = 1;
+
     if (strcmp(tokens[num_tokens-2], BG_TOKEN) == 0) {
         blocking = 0;
-        char** new_tokens = remove_bg_token(num_tokens, tokens);
-        print_tokens(num_tokens - 1, new_tokens);
+        char* new_tokens[num_tokens-1];
+        remove_bg_token(tokens, new_tokens, num_tokens);
+        //print_tokens(num_tokens - 1, new_tokens);
     }
 
     char *first = tokens[0];
 
+    // check for command names
     if (strcmp(first, "info") == 0) {
         info_handler(num_tokens, tokens);
         return;
     }
 
-    if (access(first, F_OK | R_OK) == -1) {
+    // check if file accessible and executable
+    if (access(first, F_OK | R_OK | X_OK) == -1) {
         fprintf(stderr, "%s not found\n", first);
         return;
     }
@@ -206,6 +211,7 @@ void my_process_command(size_t num_tokens, char **tokens) {
 
     // inside child
     if ((child_id = fork()) == 0) {
+        // this branch should never run under specified cond
         if (execv(first, tokens) == -1) {
             fprintf(stderr, "%s not found\n", first);
             _Exit(1);
