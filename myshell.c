@@ -183,14 +183,17 @@ void my_process_command(size_t num_tokens, char **tokens) {
     // arguments
     //print_tokens(num_tokens, tokens);
 
-    // background: don't blocking wait
+    // blocking = 1 means normal, blocking = 0 means &
     int blocking = 1;
 
+    // if & at end, filtered tokens will be tokens without BG_TOKEN
+    char* filtered_tokens[num_tokens-1];
+
+    // check if bg proc
     if (strcmp(tokens[num_tokens-2], BG_TOKEN) == 0) {
         blocking = 0;
-        char* new_tokens[num_tokens-1];
-        remove_bg_token(tokens, new_tokens, num_tokens);
-        //print_tokens(num_tokens - 1, new_tokens);
+        remove_bg_token(tokens, filtered_tokens, num_tokens);
+        //print_tokens(num_tokens - 1, filtered_tokens);
     }
 
     char *first = tokens[0];
@@ -212,7 +215,19 @@ void my_process_command(size_t num_tokens, char **tokens) {
     // inside child
     if ((child_id = fork()) == 0) {
         // this branch should never run under specified cond
-        if (execv(first, tokens) == -1) {
+        char** actual_tokens = tokens;
+        size_t length = num_tokens;
+
+        if (blocking) {
+            actual_tokens = tokens;
+            length = num_tokens;
+        } else {
+            actual_tokens = filtered_tokens;
+            length = num_tokens-1;
+        }
+        //print_tokens(length, actual_tokens);
+
+        if (execv(first, actual_tokens) == -1) {
             fprintf(stderr, "%s not found\n", first);
             _Exit(1);
         } 
@@ -224,8 +239,11 @@ void my_process_command(size_t num_tokens, char **tokens) {
         fprintf(stderr, "%s not found\n", first);
     }
 
+
     if (blocking) {
         blocking_wait_on_process(child_id);
+    } else {
+        printf("Child [%d] in background\n", child_id);
     }
 }
 
