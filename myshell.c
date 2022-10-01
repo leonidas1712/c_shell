@@ -121,7 +121,10 @@ void update_process_state(PCBTable *proc, int status) {
             proc->status = EXITED;
             // get actual exit status using macro
             proc->exitCode = WEXITSTATUS(status);
-        }
+    } else if (WIFSIGNALED(status)) {
+        proc->status = EXITED;
+        proc->exitCode = WTERMSIG(status);
+    }
 }
 
 // wait on a process given pointer to the process
@@ -210,7 +213,7 @@ void info_handler(size_t num_tokens, char** tokens) {
 }
 
 // wait command
-void wait_handler(size_t num_tokens, char**tokens) {
+void wait_handler(char**tokens) {
     //print_tokens(num_tokens, tokens);
     pid_t pid = atoi(tokens[1]);
     update_processes();
@@ -223,6 +226,25 @@ void wait_handler(size_t num_tokens, char**tokens) {
 
         if (proc->status == RUNNING) {
             wait_on_proc(proc);
+        }
+    }
+}
+
+// terminate PID
+void terminate_handler(char**tokens) {
+    pid_t pid = atoi(tokens[1]);
+    update_processes();
+
+    for (int i = 0; i < num_processes; i++) {
+        PCBTable *proc = &processes[i];
+        if (proc->pid != pid) {
+            continue;
+        }
+
+        if (proc->status == RUNNING) {
+            proc->status = TERMINATING;
+            // just send the signal: process can intercept and do what it wants
+            kill(proc->pid, SIGTERM);
         }
     }
 }
@@ -257,7 +279,12 @@ void my_process_command(size_t num_tokens, char **tokens) {
     } 
 
     if (strcmp(first, "wait") == 0) {
-        wait_handler(num_tokens, tokens);
+        wait_handler(tokens);
+        return;
+    }
+
+    if (strcmp(first, "terminate") == 0) {
+        terminate_handler(tokens);
         return;
     }
 
