@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <errno.h>
 
 #define EXITED 1
 #define RUNNING 2
@@ -29,6 +30,8 @@ PCBTable processes[MAX_PROCESSES];
 // invariant: next index to add at = num_processes
 int num_processes = 0;
 
+/* PRINTING */
+
 void print_tokens(size_t num_tokens, char** tokens) {
     printf("tokens excl. NULL: %ld\n", num_tokens - 1);
     if (num_tokens >= 1) {
@@ -39,13 +42,6 @@ void print_tokens(size_t num_tokens, char** tokens) {
     }
 }
 
-// add a new running process
-void add_process(pid_t pid) {
-    PCBTable proc = { pid, RUNNING, NOT_EXITED };
-    processes[num_processes] = proc;
-    num_processes += 1;
-    return;
-}
 
 // print details for one process
 void print_process(PCBTable *proc) {
@@ -103,6 +99,88 @@ void print_process_count(int status) {
     }
 }
 
+void my_init(void) {
+    // Initialize what you need here
+    //signal(SIGCHLD, child_handler);
+ 
+}
+
+/* PROCESS UPDATES */
+
+// add a new running process
+void add_process(pid_t pid) {
+    PCBTable proc = { pid, RUNNING, NOT_EXITED };
+    processes[num_processes] = proc;
+    num_processes += 1;
+    return;
+}
+
+// Updates process at &proc according to status returned from wait*
+void update_process_state(PCBTable *proc, int status) {
+    if (WIFEXITED(status)) {
+            proc->status = EXITED;
+            // get actual exit status using macro
+            proc->exitCode = WEXITSTATUS(status);
+        }
+}
+
+// wait on a process given pointer to the process
+void wait_on_proc(PCBTable *proc) {
+    int status;
+    waitpid(proc->pid, &status, 0);
+    update_process_state(proc, status);
+}
+
+// blocking wait and state change for a specific child process
+void blocking_wait_on_process(pid_t pid) {
+    for (int i = 0; i < num_processes; i++) {
+        PCBTable *proc = &processes[i];
+
+        if (proc->pid != pid) {
+            continue;
+        }
+
+        wait_on_proc(proc);
+    }
+}
+
+// state change on any processes that have not been waited on already
+void update_processes() {
+    for (int i = 0; i < num_processes; i++) {
+        PCBTable *proc = &processes[i];
+        int status;
+
+        int res = waitpid(proc->pid, &status, WNOHANG);
+
+        // either waited already or no state change
+        if (res <= 0) {
+            continue;
+        }
+        
+        update_process_state(proc, status);
+    }
+}
+
+/* PARSING AND COMMAND HANDLERS */
+
+// num_tokens: length of src including NULL
+// assumption: dest created with size num_tokens-1
+void remove_bg_token(char** src, char** dest, size_t num_tokens) {
+    size_t index = 0;
+    for (size_t i = 0; i < num_tokens; i++) {
+        if (src[i] == NULL) {
+            continue;
+        }
+
+        if (strcmp(BG_TOKEN, src[i]) == 0) {
+            continue;
+        }
+        dest[index] = src[i];
+        index++;
+    }
+    dest[num_tokens-2] = NULL;
+}
+
 // option is numeric numbers +ve,-ve
 // options: 0,1,2,3
 void info_handler(size_t num_tokens, char** tokens) {
@@ -111,7 +189,6 @@ void info_handler(size_t num_tokens, char** tokens) {
     // num_tokens includes NULL
     if (num_tokens - 1 > 1) {
         int option = atoi(tokens[1]);
-
         switch (option) {
             case 0:
                 print_all_processes();                
@@ -132,69 +209,22 @@ void info_handler(size_t num_tokens, char** tokens) {
     
 }
 
-void my_init(void) {
-    // Initialize what you need here
-    //signal(SIGCHLD, child_handler);
- 
-}
+// wait command
+void wait_handler(size_t num_tokens, char**tokens) {
+    //print_tokens(num_tokens, tokens);
+    pid_t pid = atoi(tokens[1]);
+    update_processes();
 
-// blocking wait and state change for a specific child process
-void blocking_wait_on_process(pid_t pid) {
     for (int i = 0; i < num_processes; i++) {
         PCBTable *proc = &processes[i];
-        int status;
-
         if (proc->pid != pid) {
             continue;
         }
 
-        int res = waitpid(proc->pid, &status, 0);
-
-        if (WIFEXITED(status)) {
-            proc->status = EXITED;
-            // get actual exit status using macro
-            proc->exitCode = WEXITSTATUS(status);
+        if (proc->status == RUNNING) {
+            wait_on_proc(proc);
         }
     }
-}
-
-// state change on any processes that have not been waited on already
-void clean_processes() {
-    for (int i = 0; i < num_processes; i++) {
-        PCBTable *proc = &processes[i];
-        int status;
-
-        int res = waitpid(proc->pid, &status, WNOHANG);
-
-        // either waited already or no state change
-        if (res <= 0) {
-            continue;
-        }
-
-        if (WIFEXITED(status)) {
-            proc->status = EXITED;
-            // get actual exit status using macro
-            proc->exitCode = WEXITSTATUS(status);
-        }
-    }
-}
-
-// num_tokens: length of src including NULL
-// assumption: dest created with size num_tokens-1
-void remove_bg_token(char** src, char** dest, size_t num_tokens) {
-    size_t index = 0;
-    for (size_t i = 0; i < num_tokens; i++) {
-        if (src[i] == NULL) {
-            continue;
-        }
-
-        if (strcmp(BG_TOKEN, src[i]) == 0) {
-            continue;
-        }
-        dest[index] = src[i];
-        index++;
-    }
-    dest[num_tokens-2] = NULL;
 }
 
 
@@ -202,13 +232,13 @@ void remove_bg_token(char** src, char** dest, size_t num_tokens) {
 void my_process_command(size_t num_tokens, char **tokens) {
     // Your code here, refer to the lab document for a description of the
     // arguments
-    clean_processes();
+    update_processes();
     //print_tokens(num_tokens, tokens);
 
     // blocking = 1 means normal, blocking = 0 means &
     int blocking = 1;
 
-    // if & at end, filtered tokens will be tokens without BG_TOKEN
+    // if BG_TOKEN at end, filtered tokens will be tokens without BG_TOKEN
     char* filtered_tokens[num_tokens-1];
 
     // check if bg proc
@@ -223,6 +253,11 @@ void my_process_command(size_t num_tokens, char **tokens) {
     // check for command names
     if (strcmp(first, "info") == 0) {
         info_handler(num_tokens, tokens);
+        return;
+    } 
+
+    if (strcmp(first, "wait") == 0) {
+        wait_handler(num_tokens, tokens);
         return;
     }
 
@@ -274,8 +309,15 @@ void my_process_command(size_t num_tokens, char **tokens) {
 void my_quit(void) {
 
     // Clean up function, called after "quit" is entered as a user command
-
-
+    update_processes();
+    for (int i = 0; i < num_processes; i++) {
+        PCBTable *proc = &processes[i];
+        
+        if (proc->status == RUNNING) {
+            printf("Killing [%d]\n", proc->pid);
+            kill(proc->pid, SIGTERM);
+        }
+    }
 
     printf("\nGoodbye\n");
 }
