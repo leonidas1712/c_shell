@@ -252,6 +252,7 @@ void terminate_handler(char**tokens) {
 // num_tokens and ** tokens are for one command only
 // may include &, won't include semicolon. tokens is NULL terminated
 void process_one_command(size_t num_tokens, char **tokens) {
+    update_processes();
     char *first = tokens[0];
 
     // COMMAND : check for command names
@@ -338,39 +339,33 @@ void process_one_command(size_t num_tokens, char **tokens) {
 void my_process_command(size_t num_tokens, char **tokens) {
     // Your code here, refer to the lab document for a description of the
     // arguments
-    print_tokens(num_tokens, tokens);
+    // print_tokens(num_tokens, tokens);
     update_processes();
     
     // start_index of current command, length of the cmd excluding NULL/;
     size_t start_index = 0;
     size_t length = 0;
-    printf("\n");
 
     // create new token arrays for each command to execute and pass individually
+    // tokens includes all args and NULL - so that we can pass into execv directly
     for (size_t i = 0; i < num_tokens; i++) {
-        if (tokens[i] == NULL || strcmp(tokens[i], CHAIN_TOKEN) == 0) {
+        if (length > 0 && (tokens[i] == NULL || strcmp(tokens[i], CHAIN_TOKEN) == 0)) {
             // execute using process
-            // printf("Index: %ld, Length: %ld\n\n", start_index, length);
-
             char *current_tokens[length+1];
+
             for (size_t j = start_index; j < start_index + length; j++) {
                 current_tokens[j - start_index] = tokens[j];
             }
             // terminate with NULL
             current_tokens[length] = NULL;
 
-            for (size_t k = 0; k < length+1; k++) {
-                printf("current_tokens[%ld]: %s\n", k, current_tokens[k]);
-            }
-            printf("\n");
-
+            process_one_command(length + 1, current_tokens);
 
             start_index=i+1;
             length = 0;
 
             
         } else {
-            // increment length
             length++;
         }
     }
