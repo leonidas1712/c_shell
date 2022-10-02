@@ -23,7 +23,7 @@
 #define STOPPED 4
 #define NOT_EXITED -1
 #define BG_TOKEN "&"
-
+#define CHAIN_TOKEN ";"
 typedef struct PCBTable PCBTable;
 
 PCBTable processes[MAX_PROCESSES];
@@ -36,7 +36,7 @@ void print_tokens(size_t num_tokens, char** tokens) {
     printf("tokens excl. NULL: %ld\n", num_tokens - 1);
     if (num_tokens >= 1) {
         printf("command: %s\n", tokens[0]);
-        for (size_t i = 1; i < num_tokens - 1;i++) {
+        for (size_t i = 1; i < num_tokens;i++) {
             printf("tokens[%ld]: %s\n", i, tokens[i]);
         }
     }
@@ -249,30 +249,12 @@ void terminate_handler(char**tokens) {
     }
 }
 
-
-// tokens: array of strings, last is NULL
-void my_process_command(size_t num_tokens, char **tokens) {
-    // Your code here, refer to the lab document for a description of the
-    // arguments
-    update_processes();
-    //print_tokens(num_tokens, tokens);
-
-    // blocking = 1 means normal, blocking = 0 means &
-    int blocking = 1;
-
-    // if BG_TOKEN at end, filtered tokens will be tokens without BG_TOKEN
-    char* filtered_tokens[num_tokens-1];
-
-    // check if bg proc
-    if (strcmp(tokens[num_tokens-2], BG_TOKEN) == 0) {
-        blocking = 0;
-        remove_bg_token(tokens, filtered_tokens, num_tokens);
-        //print_tokens(num_tokens - 1, filtered_tokens);
-    }
-
+// num_tokens and ** tokens are for one command only
+// may include &, won't include semicolon. tokens is NULL terminated
+void process_one_command(size_t num_tokens, char **tokens) {
     char *first = tokens[0];
 
-    // check for command names
+    // COMMAND : check for command names
     if (strcmp(first, "info") == 0) {
         info_handler(num_tokens, tokens);
         return;
@@ -288,10 +270,27 @@ void my_process_command(size_t num_tokens, char **tokens) {
         return;
     }
 
+    // PROGRAM
+
     // check if file accessible and executable
     if (access(first, F_OK | R_OK | X_OK) == -1) {
         fprintf(stderr, "%s not found\n", first);
         return;
+    }
+
+
+
+    // blocking = 1 means normal, blocking = 0 means &
+    int blocking = 1;
+
+    // if BG_TOKEN at end, filtered tokens will be tokens without BG_TOKEN
+    char* filtered_tokens[num_tokens-1];
+
+    // check if bg proc
+    if (strcmp(tokens[num_tokens-2], BG_TOKEN) == 0) {
+        blocking = 0;
+        remove_bg_token(tokens, filtered_tokens, num_tokens);
+        //print_tokens(num_tokens - 1, filtered_tokens);
     }
 
     pid_t child_id;
@@ -324,11 +323,61 @@ void my_process_command(size_t num_tokens, char **tokens) {
     }
 
 
+
+
+    // run blocking or async
     if (blocking) {
         blocking_wait_on_process(child_id);
     } else {
         printf("Child [%d] in background\n", child_id);
     }
+}
+
+
+// tokens: array of strings, last is NULL
+void my_process_command(size_t num_tokens, char **tokens) {
+    // Your code here, refer to the lab document for a description of the
+    // arguments
+    print_tokens(num_tokens, tokens);
+    update_processes();
+    
+    // start_index of current command, length of the cmd excluding NULL/;
+    size_t start_index = 0;
+    size_t length = 0;
+    printf("\n");
+
+    // create new token arrays for each command to execute and pass individually
+    for (size_t i = 0; i < num_tokens; i++) {
+        if (tokens[i] == NULL || strcmp(tokens[i], CHAIN_TOKEN) == 0) {
+            // execute using process
+            // printf("Index: %ld, Length: %ld\n\n", start_index, length);
+
+            char *current_tokens[length+1];
+            for (size_t j = start_index; j < start_index + length; j++) {
+                current_tokens[j - start_index] = tokens[j];
+            }
+            // terminate with NULL
+            current_tokens[length] = NULL;
+
+            for (size_t k = 0; k < length+1; k++) {
+                printf("current_tokens[%ld]: %s\n", k, current_tokens[k]);
+            }
+            printf("\n");
+
+
+            start_index=i+1;
+            length = 0;
+
+            
+        } else {
+            // increment length
+            length++;
+        }
+    }
+
+    // TODO: split into multiple commands of num_tokens, tokens when semicolon there,
+    // then pass into process_one one by one
+    //process_one_command(num_tokens, tokens);
 }
 
 
