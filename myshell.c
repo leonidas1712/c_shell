@@ -65,8 +65,10 @@ void print_process(PCBTable *proc) {
 
     switch (status) {
         case 1:
-        case 4:
             printf(with_code, pid, "Exited", exitCode);
+            break;
+        case 4:
+            printf(without_code, pid, "Stopped");
             break;
         case 2:
             printf(without_code, pid, "Running");
@@ -115,7 +117,7 @@ void handle_sigint(int signum) {
     if (current_process == NULL) {
         return;
     }
-    
+    printf("[%d] interrupted\n", current_process->pid);
     kill(current_process->pid, SIGINT);
 }
 
@@ -123,6 +125,7 @@ void handle_sigtstp(int signum) {
     if (current_process == NULL) {
         return;
     }
+    printf("[%d] stopped\n", current_process->pid);
     kill(current_process->pid, SIGTSTP);
 }
 
@@ -155,6 +158,8 @@ void update_process_state(PCBTable *proc, int status) {
     } else if (WIFSIGNALED(status)) {
         proc->status = EXITED;
         proc->exitCode = WTERMSIG(status);
+    } else if (WIFSTOPPED(status)) {
+        proc->status = STOPPED;
     }
 
     if (current_process->pid == proc->pid) {
