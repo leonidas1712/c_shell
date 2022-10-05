@@ -257,7 +257,31 @@ void terminate_handler(char**tokens) {
     }
 }
 
+// FILE REDIRECT HANDLERS
+
+// return -1 if in_file not accessible, else call dup2
+// return 0 if input token didn't exist or success
+int handle_in(char** actual_tokens, size_t *indices) {
+    if (indices[INPUT_INDEX] == (size_t)-1) {
+        return 0;
+    }
+
+    char *file_name = actual_tokens[indices[INPUT_INDEX] + 1];
+    FILE *in_file = fopen(file_name, "r");
+    if (in_file == NULL) {
+        return -1;
+    }
+
+    int res = dup2(fileno(in_file), STDIN_FILENO);
+    if (res == -1) {
+        return res;
+    }
+
+    return 0;
+}
+
 // PARSING
+
 // assumption: each token appears only once
 // find first index of <,> or 2> indicating re-direction
 // return -1 if no such token, else the index of the first token
@@ -379,11 +403,16 @@ void process_one_command(size_t num_tokens, char **tokens) {
             
             slice_excl(actual_tokens, sliced, first_index);
             actual_tokens_after_slice = sliced;
+            
+            if (handle_in(actual_tokens, indices) == -1) {
+                goto fail;
+            }
             //print_tokens(first_index+1, actual_tokens_after_slice);
         }
        
 
         //print_tokens(length, actual_tokens);
+    fail:
         if (execv(first, actual_tokens_after_slice) == -1) {
             fprintf(stderr, "%s not found\n", first);
             _Exit(1);
