@@ -24,6 +24,14 @@
 #define NOT_EXITED -1
 #define BG_TOKEN "&"
 #define CHAIN_TOKEN ";"
+#define INPUT_TOKEN "<"
+#define OUTPUT_TOKEN ">"
+#define ERR_TOKEN "2>"
+#define INPUT_INDEX 0
+#define OUTPUT_INDEX 1
+#define ERR_INDEX 2
+#define FILE_TOKENS_LENGTH 3
+
 typedef struct PCBTable PCBTable;
 
 PCBTable processes[MAX_PROCESSES];
@@ -249,6 +257,42 @@ void terminate_handler(char**tokens) {
     }
 }
 
+// PARSING
+// assumption: each token appears only once
+// find first index of <,> or 2> indicating re-direction
+// return -1 if no such token, else the index of the first token
+// actual_tokens: tokens without BG_TOKEN if any
+// indices: array length 3, already created
+size_t first_index_of_file_token(size_t length, char ** actual_tokens, size_t *indices) {
+    size_t NO_VAL = -1;
+    size_t min_index = -1;
+    for (size_t i = 0; i < length; i++) {
+        if (actual_tokens[i] == NULL) {
+            continue;
+        }
+
+        size_t curr = -1;
+
+        if (strcmp(actual_tokens[i], INPUT_TOKEN) == 0) {
+            indices[INPUT_INDEX] = i;
+            curr = i;
+        } else if (strcmp(actual_tokens[i], OUTPUT_TOKEN) == 0) {
+            indices[OUTPUT_INDEX] = i;
+            curr = i;
+        } else if (strcmp(actual_tokens[i], ERR_TOKEN) == 0) {
+            indices[ERR_INDEX] = i;
+            curr = i;
+        }
+
+        if (curr != NO_VAL && min_index == NO_VAL) {
+            min_index = curr;
+        }
+    }
+
+    return min_index;
+
+}   
+
 // num_tokens and ** tokens are for one command only
 // may include &, won't include semicolon. tokens is NULL terminated
 void process_one_command(size_t num_tokens, char **tokens) {
@@ -301,6 +345,8 @@ void process_one_command(size_t num_tokens, char **tokens) {
         char** actual_tokens = tokens;
         size_t length = num_tokens;
 
+        
+
         // chose original if blocking, filtered if nonblocking
         if (blocking) {
             actual_tokens = tokens;
@@ -309,7 +355,22 @@ void process_one_command(size_t num_tokens, char **tokens) {
             actual_tokens = filtered_tokens;
             length = num_tokens-1;
         }
-        //print_tokens(length, actual_tokens);
+
+        // print_tokens(length, actual_tokens);
+
+        // slice actual_tokens to before first file token if needed
+        size_t indices[3] = {-1,-1,-1};
+        size_t first_index = first_index_of_file_token(length, actual_tokens, indices);
+        // printf("First index: %ld\n", first_index);
+        // for (int k = 0; k < 3; k++) {
+        //     printf("indices[%d]: %ld\n", k, indices[k]);
+        // }
+
+        // redirection token exists
+        if (first_index != -1) {
+            
+        }
+       
 
         if (execv(first, actual_tokens) == -1) {
             fprintf(stderr, "%s not found\n", first);
@@ -359,12 +420,11 @@ void my_process_command(size_t num_tokens, char **tokens) {
             // terminate with NULL
             current_tokens[length] = NULL;
 
+
             process_one_command(length + 1, current_tokens);
 
             start_index=i+1;
-            length = 0;
-
-            
+            length = 0;            
         } else {
             length++;
         }
