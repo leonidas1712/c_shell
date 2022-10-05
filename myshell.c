@@ -115,16 +115,15 @@ void handle_sigint(int signum) {
     if (current_process == NULL) {
         return;
     }
-    puts("SIGINT");
-    printf("Proc [%d]\n", current_process->pid);
+    
+    kill(current_process->pid, SIGINT);
 }
 
 void handle_sigtstp(int signum) {
     if (current_process == NULL) {
         return;
     }
-    puts("SIGTSTP");
-    printf("Proc [%d]\n", current_process->pid);
+    kill(current_process->pid, SIGTSTP);
 }
 
 
@@ -159,16 +158,16 @@ void update_process_state(PCBTable *proc, int status) {
     }
 
     if (current_process->pid == proc->pid) {
-        printf("Current proc [%d] set NULL\n", proc->pid);
         current_process = NULL;
     }
 }
 
 // wait on a process given pointer to the process
+// set the current process
 void wait_on_proc(PCBTable *proc) {
     current_process = proc;
     int status;
-    waitpid(proc->pid, &status, 0);
+    waitpid(proc->pid, &status, WUNTRACED);
     update_process_state(proc, status);
 }
 
