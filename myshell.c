@@ -38,6 +38,9 @@ PCBTable processes[MAX_PROCESSES];
 // invariant: next index to add at = num_processes
 int num_processes = 0;
 
+// pointer to process currently being waited on
+PCBTable *current_process = NULL;
+
 /* PRINTING */
 
 void print_tokens(size_t num_tokens, char** tokens) {
@@ -107,9 +110,29 @@ void print_process_count(int status) {
     }
 }
 
+// SIGNAL HANDLERS
+void handle_sigint(int signum) {
+    if (current_process == NULL) {
+        return;
+    }
+    puts("SIGINT");
+    printf("Proc [%d]\n", current_process->pid);
+}
+
+void handle_sigtstp(int signum) {
+    if (current_process == NULL) {
+        return;
+    }
+    puts("SIGTSTP");
+    printf("Proc [%d]\n", current_process->pid);
+}
+
+
 void my_init(void) {
     // Initialize what you need here
     //signal(SIGCHLD, child_handler);
+    signal(SIGTSTP, handle_sigtstp);
+    signal(SIGINT, handle_sigint);
  
 }
 
@@ -124,6 +147,7 @@ void add_process(pid_t pid) {
 }
 
 // Updates process at &proc according to status returned from wait*
+// Change currently waiting to NULL if this process was being waited on
 void update_process_state(PCBTable *proc, int status) {
     if (WIFEXITED(status)) {
             proc->status = EXITED;
@@ -133,10 +157,16 @@ void update_process_state(PCBTable *proc, int status) {
         proc->status = EXITED;
         proc->exitCode = WTERMSIG(status);
     }
+
+    if (current_process->pid == proc->pid) {
+        printf("Current proc [%d] set NULL\n", proc->pid);
+        current_process = NULL;
+    }
 }
 
 // wait on a process given pointer to the process
 void wait_on_proc(PCBTable *proc) {
+    current_process = proc;
     int status;
     waitpid(proc->pid, &status, 0);
     update_process_state(proc, status);
@@ -300,6 +330,8 @@ void terminate_handler(char**tokens) {
         }
     }
 }
+
+
 
 // FILE REDIRECT HANDLERS
 
