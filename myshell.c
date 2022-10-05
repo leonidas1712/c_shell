@@ -290,6 +290,16 @@ void handle_out(char** actual_tokens, size_t *indices) {
     dup2(fileno(out_file), STDOUT_FILENO);
 }
 
+void handle_err(char** actual_tokens, size_t *indices) {
+    if (indices[ERR_INDEX] == (size_t)-1) {
+        return;
+    }
+
+    char *file_name = actual_tokens[indices[ERR_INDEX] + 1];
+    FILE *err_file = fopen(file_name, "w");
+    dup2(fileno(err_file), STDERR_FILENO);
+}
+
 // PARSING
 
 // assumption: each token appears only once
@@ -414,16 +424,23 @@ void process_one_command(size_t num_tokens, char **tokens) {
             slice_excl(actual_tokens, sliced, first_index);
             actual_tokens_after_slice = sliced;
 
+            // printf("first ind: %ld\n", first_index);
+            // for (int k = 0; k < 3; k++) {
+            //     printf("ind[%d]: %ld\n", k, indices[k]);
+            // }
+
             if (handle_in(actual_tokens, indices) == -1) {
-                goto fail;
+                fprintf(stderr, "%s does not exist\n", actual_tokens[indices[INPUT_INDEX] + 1]);
+                _Exit(1);
             }
+
             handle_out(actual_tokens, indices);
+            handle_err(actual_tokens, indices);
             //print_tokens(first_index+1, actual_tokens_after_slice);
         }
        
 
         //print_tokens(length, actual_tokens);
-    fail:
         if (execv(first, actual_tokens_after_slice) == -1) {
             fprintf(stderr, "%s not found\n", first);
             _Exit(1);
