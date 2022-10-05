@@ -280,6 +280,16 @@ int handle_in(char** actual_tokens, size_t *indices) {
     return 0;
 }
 
+void handle_out(char** actual_tokens, size_t *indices) {
+    if (indices[OUTPUT_INDEX] == (size_t)-1) {
+        return;
+    }
+
+    char *file_name = actual_tokens[indices[OUTPUT_INDEX] + 1];
+    FILE *out_file = fopen(file_name, "w");
+    dup2(fileno(out_file), STDOUT_FILENO);
+}
+
 // PARSING
 
 // assumption: each token appears only once
@@ -403,10 +413,11 @@ void process_one_command(size_t num_tokens, char **tokens) {
             
             slice_excl(actual_tokens, sliced, first_index);
             actual_tokens_after_slice = sliced;
-            
+
             if (handle_in(actual_tokens, indices) == -1) {
                 goto fail;
             }
+            handle_out(actual_tokens, indices);
             //print_tokens(first_index+1, actual_tokens_after_slice);
         }
        
