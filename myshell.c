@@ -372,18 +372,19 @@ void process_one_command(size_t num_tokens, char **tokens) {
         size_t indices[3] = {-1,-1,-1};
         size_t first_index = first_index_of_file_token(length, actual_tokens, indices);
         char *sliced[first_index+1];
+        char **actual_tokens_after_slice = actual_tokens;
     
         // redirection token exists
         if (first_index != (size_t) -1) {
             
             slice_excl(actual_tokens, sliced, first_index);
-            actual_tokens = sliced;
-            //print_tokens(first_index+1, actual_tokens);
+            actual_tokens_after_slice = sliced;
+            //print_tokens(first_index+1, actual_tokens_after_slice);
         }
        
 
         //print_tokens(length, actual_tokens);
-        if (execv(first, actual_tokens) == -1) {
+        if (execv(first, actual_tokens_after_slice) == -1) {
             fprintf(stderr, "%s not found\n", first);
             _Exit(1);
         } 
