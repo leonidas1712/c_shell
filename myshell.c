@@ -293,6 +293,16 @@ size_t first_index_of_file_token(size_t length, char ** actual_tokens, size_t *i
 
 }   
 
+// buffer = original[0:index], index exclusive
+// buffer already created with length index+1 to accomodate NULL at end
+void slice_excl(char** original, char** buffer, size_t index) {
+    for (size_t i = 0; i < index; i++) {
+        buffer[i] = original[i];
+    }
+    buffer[index] = NULL;
+}
+
+
 // num_tokens and ** tokens are for one command only
 // may include &, won't include semicolon. tokens is NULL terminated
 void process_one_command(size_t num_tokens, char **tokens) {
@@ -361,17 +371,18 @@ void process_one_command(size_t num_tokens, char **tokens) {
         // slice actual_tokens to before first file token if needed
         size_t indices[3] = {-1,-1,-1};
         size_t first_index = first_index_of_file_token(length, actual_tokens, indices);
-        // printf("First index: %ld\n", first_index);
-        // for (int k = 0; k < 3; k++) {
-        //     printf("indices[%d]: %ld\n", k, indices[k]);
-        // }
-
+        char *sliced[first_index+1];
+    
         // redirection token exists
-        if (first_index != -1) {
+        if (first_index != (size_t) -1) {
             
+            slice_excl(actual_tokens, sliced, first_index);
+            actual_tokens = sliced;
+            //print_tokens(first_index+1, actual_tokens);
         }
        
 
+        //print_tokens(length, actual_tokens);
         if (execv(first, actual_tokens) == -1) {
             fprintf(stderr, "%s not found\n", first);
             _Exit(1);
