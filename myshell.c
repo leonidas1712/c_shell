@@ -174,6 +174,50 @@ void update_processes() {
 
 /* PARSING AND COMMAND HANDLERS */
 
+// assumption: each token appears only once
+// find first index of <,> or 2> indicating re-direction
+// return -1 if no such token, else the index of the first token
+// actual_tokens: tokens without BG_TOKEN if any
+// indices: array length 3, already created
+size_t first_index_of_file_token(size_t length, char ** actual_tokens, size_t *indices) {
+    size_t NO_VAL = -1;
+    size_t min_index = -1;
+    for (size_t i = 0; i < length; i++) {
+        if (actual_tokens[i] == NULL) {
+            continue;
+        }
+
+        size_t curr = -1;
+
+        if (strcmp(actual_tokens[i], INPUT_TOKEN) == 0) {
+            indices[INPUT_INDEX] = i;
+            curr = i;
+        } else if (strcmp(actual_tokens[i], OUTPUT_TOKEN) == 0) {
+            indices[OUTPUT_INDEX] = i;
+            curr = i;
+        } else if (strcmp(actual_tokens[i], ERR_TOKEN) == 0) {
+            indices[ERR_INDEX] = i;
+            curr = i;
+        }
+
+        if (curr != NO_VAL && min_index == NO_VAL) {
+            min_index = curr;
+        }
+    }
+
+    return min_index;
+
+}   
+
+// buffer = original[0:index], index exclusive
+// buffer already created with length index+1 to accomodate NULL at end
+void slice_excl(char** original, char** buffer, size_t index) {
+    for (size_t i = 0; i < index; i++) {
+        buffer[i] = original[i];
+    }
+    buffer[index] = NULL;
+}
+
 // num_tokens: length of src including NULL
 // assumption: dest created with size num_tokens-1
 void remove_bg_token(char** src, char** dest, size_t num_tokens) {
@@ -298,52 +342,6 @@ void handle_err(char** actual_tokens, size_t *indices) {
     char *file_name = actual_tokens[indices[ERR_INDEX] + 1];
     FILE *err_file = fopen(file_name, "w");
     dup2(fileno(err_file), STDERR_FILENO);
-}
-
-// PARSING
-
-// assumption: each token appears only once
-// find first index of <,> or 2> indicating re-direction
-// return -1 if no such token, else the index of the first token
-// actual_tokens: tokens without BG_TOKEN if any
-// indices: array length 3, already created
-size_t first_index_of_file_token(size_t length, char ** actual_tokens, size_t *indices) {
-    size_t NO_VAL = -1;
-    size_t min_index = -1;
-    for (size_t i = 0; i < length; i++) {
-        if (actual_tokens[i] == NULL) {
-            continue;
-        }
-
-        size_t curr = -1;
-
-        if (strcmp(actual_tokens[i], INPUT_TOKEN) == 0) {
-            indices[INPUT_INDEX] = i;
-            curr = i;
-        } else if (strcmp(actual_tokens[i], OUTPUT_TOKEN) == 0) {
-            indices[OUTPUT_INDEX] = i;
-            curr = i;
-        } else if (strcmp(actual_tokens[i], ERR_TOKEN) == 0) {
-            indices[ERR_INDEX] = i;
-            curr = i;
-        }
-
-        if (curr != NO_VAL && min_index == NO_VAL) {
-            min_index = curr;
-        }
-    }
-
-    return min_index;
-
-}   
-
-// buffer = original[0:index], index exclusive
-// buffer already created with length index+1 to accomodate NULL at end
-void slice_excl(char** original, char** buffer, size_t index) {
-    for (size_t i = 0; i < index; i++) {
-        buffer[i] = original[i];
-    }
-    buffer[index] = NULL;
 }
 
 
